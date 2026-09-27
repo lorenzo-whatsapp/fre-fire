@@ -13,9 +13,6 @@ on:
           - "60"
           - "90"
           - "120"
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
