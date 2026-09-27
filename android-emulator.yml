@@ -1,0 +1,72 @@
+name: Android Cloud Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_minutes:
+        description: "How long to keep the Android emulator running"
+        required: true
+        default: "120"
+        type: choice
+        options:
+          - "30"
+          - "60"
+          - "90"
+          - "120"
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android Emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download APKs from latest GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p apps
+          echo "Downloading release assets..."
+          gh release download \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern "*.apk" \
+            --dir apps
+
+          echo "Downloaded APKs:"
+          ls -lh apps
+
+          count="$(find apps -maxdepth 1 -type f -iname '*.apk' | wc -l)"
+          if [ "$count" -eq 0 ]; then
+            echo "No .apk release assets were found."
+            echo "Create a GitHub Release and upload your APK file(s) as release assets."
+            exit 1
+          fi
+
+      - name: Run Android emulator
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          heap-size: 512M
+          disk-size: 8G
+          avd-name: cloud-runner
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot
+          disable-animations: true
+          enable-hw-keyboard: true
+          script: bash scripts/run_apps.sh "${{ github.event.inputs.duration_minutes || '120' }}"
